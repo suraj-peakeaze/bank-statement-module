@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Comparison Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+
+        .upload-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .upload-box {
+            border: 3px dashed #3498db;
+            border-radius: 15px;
+            padding: 40px 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            background: rgba(52, 152, 219, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-box::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(52, 152, 219, 0.1), transparent);
+            transform: rotate(45deg);
+            transition: all 0.5s ease;
+            opacity: 0;
+        }
+
+        .upload-box:hover::before {
+            opacity: 1;
+            animation: shine 1.5s infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+
+        .upload-box:hover {
+            border-color: #2980b9;
+            background: rgba(52, 152, 219, 0.1);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(52, 152, 219, 0.2);
+        }
+
+        .upload-box h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            position: relative;
+            z-index: 1;
+        }
+        .upload-box p {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 12px 30px;
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+
+        .file-input-label:hover {
+            background: linear-gradient(45deg, #2980b9, #1f5f8b);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .file-name {
+            margin-top: 15px;
+            color: #27ae60;
+            font-weight: 600;
+            font-size: 0.9em;
+            position: relative;
+            z-index: 1;
+        }
+
+        .compare-section {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .compare-btn {
+            padding: 15px 40px;
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .compare-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.5s ease;
+        }
+
+        .compare-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .compare-btn:hover {
+            background: linear-gradient(45deg, #c0392b, #a93226);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(231, 76, 60, 0.3);
+        }
+
+        .compare-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .results-section {
+            display: none;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        .results-section.show {
+            display: block;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(45deg, #3498db, #2980b9);
+        }
+
+        .result-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .result-card.matches::before {
+            background: linear-gradient(45deg, #27ae60, #2ecc71);
+        }
+
+        .result-card.differences::before {
+            background: linear-gradient(45deg, #e74c3c, #f39c12);
+        }
+
+        .result-card.percentage::before {
+            background: linear-gradient(45deg, #9b59b6, #8e44ad);
+        }
+
+        .result-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .result-card.matches .result-icon {
+            color: #27ae60;
+        }
+
+        .result-card.differences .result-icon {
+            color: #e74c3c;
+        }
+
+        .result-card.percentage .result-icon {
+            color: #9b59b6;
+        }
+
+        .result-title {
+            color: #2c3e50;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .result-value {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .result-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #ecf0f1;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+
+        @media (max-width: 768px) {
+            .upload-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard-container {
+                padding: 20px;
+            }
+            
+            .differences-table {
+                overflow-x: auto;
+            }
+            
+            .tabs {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .tab-button {
+                font-size: 0.9em;
+                padding: 8px 16px;
+            }
+        }
+
+        /* Differences Section Styles */
+        .differences-section {
+            margin-top: 40px;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            color: #2c3e50;
+            font-size: 1.8em;
+            margin-bottom: 25px;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(52, 152, 219, 0.05);
+            border-radius: 15px;
+            border-left: 4px solid #3498db;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+        }
+
+        .stat-label {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .stat-value {
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+
+        .tabs-container {
+            margin-top: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 12px 20px;
+            font-size: 1em;
+            font-weight: 600;
+            color: #7f8c8d;
+            cursor: pointer;
+            border-radius: 10px 10px 0 0;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tab-button:hover {
+            background: rgba(52, 152, 219, 0.1);
+            color: #2980b9;
+        }
+
+        .tab-button.active {
+            background: #3498db;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .differences-table {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .differences-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .differences-table th {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .differences-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ecf0f1;
+            vertical-align: top;
+        }
+
+        .differences-table tr:nth-child(even) {
+            background: rgba(52, 152, 219, 0.02);
+        }
+
+        .differences-table tr:hover {
+            background: rgba(52, 152, 219, 0.05);
+        }
+
+        .value-cell {
+            font-family: 'Courier New', monospace;
+            background: rgba(241, 196, 15, 0.1);
+            border-radius: 5px;
+            padding: 5px 8px;
+            font-size: 0.9em;
+            word-break: break-word;
+        }
+
+        .difference-cell {
+            font-family: 'Courier New', monospace;
+            background: rgba(231, 76, 60, 0.1);
+            border-radius: 5px;
+            padding: 5px 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #e74c3c;
+        }
+
+        .type-label {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+
+        .more-results {
+            padding: 20px;
+            text-align: center;
+            background: rgba(52, 152, 219, 0.05);
+            border-top: 1px solid #ecf0f1;
+        }
+
+        .more-results p {
+            color: #7f8c8d;
+            font-style: italic;
+            margin: 0;
+        }
+
+        .bank-scores-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .bank-scores-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .score-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .score-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .score-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .score-title {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+
+        .score-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #28a745;
+        }
+
+        .header-analysis-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .header-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>File Comparison Dashboard</h1>
+            <p>Upload two files and compare their contents with detailed analysis</p>
+        </div>
+
+        <form id="compareForm" method="post" enctype="multipart/form-data" action="/eval/">
+            {% csrf_token %}
+            
+            <div class="upload-section">
+                <div class="upload-box">
+                    <h3>📄 Original CSV</h3>
+                    <label for="file1" class="file-input-label">Choose File</label>
+                    <input type="file" id="file1" name="file1" class="file-input" accept=".txt,.csv,.json,.xml,.pdf,.doc,.docx" required>
+                    <div class="file-name" id="file1-name"></div>
+                    <p>Upload the original CSV file from the Extractor.</p>
+                </div>
+
+                <div class="upload-box">
+                    <h3>📄 Extracted CSV</h3>
+                    <label for="file2" class="file-input-label">Choose File</label>
+                    <input type="file" id="file2" name="file2" class="file-input" accept=".txt,.csv,.json,.xml,.pdf,.doc,.docx" required>
+                    <p>Upload the extracted CSV file from the Azure Extractor. Note: The file name should not be renamed.</p>
+                    <div class="file-name" id="file2-name"></div>
+                </div>
+            </div>
+
+            <div class="compare-section">
+                <button type="submit" class="compare-btn" id="compareBtn" disabled>
+                    <span>🔍 Compare Files</span>
+                </button>
+            </div>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Analyzing files...</div>
+        </div>
+
+        {% if results %}
+        <div class="results-section show" id="results">
+            <div class="results-grid">
+                <div class="result-card matches">
+                    <div class="result-icon">✅</div>
+                    <div class="result-title">Matches Found</div>
+                    <div class="result-value">{{ results.matches }}</div>
+                    <div class="result-label">Total Matches</div>
+                </div>
+
+                <div class="result-card differences">
+                    <div class="result-icon">⚠️</div>
+                    <div class="result-title">Differences</div>
+                    <div class="result-value">{{ results.differences }}</div>
+                    <div class="result-label">Total Differences</div>
+                </div>
+
+                <div class="result-card percentage">
+                    <div class="result-icon">📊</div>
+                    <div class="result-title">Match Percentage</div>
+                    <div class="result-value">{{ results.match_percentage }}%</div>
+                    <div class="result-label">Similarity Score</div>
+                </div>
+            </div>
+
+            <!-- Detailed Differences Section -->
+            {% if results.differences > 0 %}
+            <div class="differences-section">
+                <h2 class="section-title">📋 Detailed Differences</h2>
+                
+                <!-- Summary Stats -->
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Total Cells Compared:</span>
+                        <span class="stat-value">{{ detailed_results.total_cells_compared }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Files Compared:</span>
+                        <span class="stat-value">{{ detailed_results.file1_name }} vs {{ detailed_results.file2_name }}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Common Columns:</span>
+                        <span class="stat-value">{{ detailed_results.common_columns|join:", " }}</span>
+                    </div>
+                </div>
+
+                <!-- Difference Types Tabs -->
+                <div class="tabs-container">
+                    <div class="tabs">
+                        {% if detailed_results.numerical_differences_count > 0 %}
+                        <button class="tab-button active" data-tab="numerical">
+                            🔢 Numerical Differences ({{ detailed_results.numerical_differences_count }})
+                        </button>
+                        {% endif %}
+                        {% if detailed_results.string_differences_count > 0 %}
+                        <button class="tab-button {% if detailed_results.numerical_differences_count == 0 %}active{% endif %}" data-tab="string">
+                            📝 Text Differences ({{ detailed_results.string_differences_count }})
+                        </button>
+                        {% endif %}
+                        {% if detailed_results.missing_values_count > 0 %}
+                        <button class="tab-button {% if detailed_results.numerical_differences_count == 0 and detailed_results.string_differences_count == 0 %}active{% endif %}" data-tab="missing">
+                            ❌ Missing Values ({{ detailed_results.missing_values_count }})
+                        </button>
+                        {% endif %}
+                        {% if detailed_results.type_mismatches_count > 0 %}
+                        <button class="tab-button {% if detailed_results.numerical_differences_count == 0 and detailed_results.string_differences_count == 0 and detailed_results.missing_values_count == 0 %}active{% endif %}" data-tab="types">
+                            🔄 Type Mismatches ({{ detailed_results.type_mismatches_count }})
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    <!-- Tab Content -->
+                    {% if detailed_results.numerical_differences_count > 0 %}
+                    <div class="tab-content active" id="numerical">
+                        <div class="differences-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Index</th>
+                                        <th>Column</th>
+                                        <th>File 1 Value</th>
+                                        <th>File 2 Value</th>
+                                        <th>Difference</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for diff in detailed_results.numerical_differences %}
+                                    <tr>
+                                        <td>{{ diff.index }}</td>
+                                        <td>{{ diff.column }}</td>
+                                        <td class="value-cell">{{ diff.df1_value }}</td>
+                                        <td class="value-cell">{{ diff.df2_value }}</td>
+                                        <td class="difference-cell">{{ diff.difference|floatformat:4 }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if detailed_results.string_differences_count > 0 %}
+                    <div class="tab-content {% if detailed_results.numerical_differences_count == 0 %}active{% endif %}" id="string">
+                        <div class="differences-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Index</th>
+                                        <th>Column</th>
+                                        <th>File 1 Value</th>
+                                        <th>File 2 Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for diff in detailed_results.string_differences %}
+                                    <tr>
+                                        <td>{{ diff.index }}</td>
+                                        <td>{{ diff.column }}</td>
+                                        <td class="value-cell">{{ diff.df1_value }}</td>
+                                        <td class="value-cell">{{ diff.df2_value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if detailed_results.missing_values_count > 0 %}
+                    <div class="tab-content {% if detailed_results.numerical_differences_count == 0 and detailed_results.string_differences_count == 0 %}active{% endif %}" id="missing">
+                        <div class="differences-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Index</th>
+                                        <th>Column</th>
+                                        <th>File 1 Value</th>
+                                        <th>File 2 Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for diff in detailed_results.missing_values %}
+                                    <tr>
+                                        <td>{{ diff.index }}</td>
+                                        <td>{{ diff.column }}</td>
+                                        <td class="value-cell">{{ diff.df1_value|default:"<empty>" }}</td>
+                                        <td class="value-cell">{{ diff.df2_value|default:"<empty>" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if detailed_results.type_mismatches_count > 0 %}
+                    <div class="tab-content {% if detailed_results.numerical_differences_count == 0 and detailed_results.string_differences_count == 0 and detailed_results.missing_values_count == 0 %}active{% endif %}" id="types">
+                        <div class="differences-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Index</th>
+                                        <th>Column</th>
+                                        <th>File 1 Value (Type)</th>
+                                        <th>File 2 Value (Type)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for diff in detailed_results.type_mismatches %}
+                                    <tr>
+                                        <td>{{ diff.index }}</td>
+                                        <td>{{ diff.column }}</td>
+                                        <td class="value-cell">{{ diff.df1_value }} <span class="type-label">({{ diff.df1_type }})</span></td>
+                                        <td class="value-cell">{{ diff.df2_value }} <span class="type-label">({{ diff.df2_type }})</span></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Add this after the existing results-grid -->
+            {% if bank_scores %}
+            <div class="bank-scores-section">
+                <h2 class="section-title">🏦 Bank Statement Field Scores</h2>
+                <div class="bank-scores-grid">
+                    <div class="score-card">
+                        <div class="score-icon">📅</div>
+                        <div class="score-title">Date Field</div>
+                        <div class="score-value">{{ bank_scores.date_score }}%</div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-icon">💰</div>
+                        <div class="score-title">Credit Field</div>
+                        <div class="score-value">{{ bank_scores.credit_score }}%</div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-icon">💳</div>
+                        <div class="score-title">Debit Field</div>
+                        <div class="score-value">{{ bank_scores.debit_score }}%</div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-icon">📝</div>
+                        <div class="score-title">Description Field</div>
+                        <div class="score-value">{{ bank_scores.description_score }}%</div>
+                    </div>
+                    <div class="score-card">
+                        <div class="score-icon">💼</div>
+                        <div class="score-title">Balance Field</div>
+                        <div class="score-value">{{ bank_scores.balance_score }}%</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Header Analysis Section -->
+            {% if header_analysis %}
+            <div class="header-analysis-section">
+                <h2 class="section-title">📊 Header Analysis</h2>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Header Similarity:</span>
+                        <span class="stat-value">{{ header_analysis.similarity }}%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Common Headers:</span>
+                        <span class="stat-value">{{ header_analysis.common_headers|join:", " }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="results-section" id="results">
+            <div class="results-grid">
+                <div class="result-card matches">
+                    <div class="result-icon">✅</div>
+                    <div class="result-title">Matches Found</div>
+                    <div class="result-value" id="matchesValue">0</div>
+                    <div class="result-label">Total Matches</div>
+                </div>
+
+                <div class="result-card differences">
+                    <div class="result-icon">⚠️</div>
+                    <div class="result-title">Differences</div>
+                    <div class="result-value" id="differencesValue">0</div>
+                    <div class="result-label">Total Differences</div>
+                </div>
+
+                <div class="result-card percentage">
+                    <div class="result-icon">📊</div>
+                    <div class="result-title">Match Percentage</div>
+                    <div class="result-value" id="percentageValue">0%</div>
+                    <div class="result-label">Similarity Score</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // File upload handling
+        const file1Input = document.getElementById('file1');
+        const file2Input = document.getElementById('file2');
+        const file1Name = document.getElementById('file1-name');
+        const file2Name = document.getElementById('file2-name');
+        const compareBtn = document.getElementById('compareBtn');
+        const loading = document.getElementById('loading');
+        const compareForm = document.getElementById('compareForm');
+
+        let selectedFiles = {
+            file1: null,
+            file2: null
+        };
+
+        file1Input.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFiles.file1 = file;
+                file1Name.textContent = `Selected: ${file.name}`;
+                checkFilesAndEnableCompare();
+            }
+        });
+
+        file2Input.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFiles.file2 = file;
+                file2Name.textContent = `Selected: ${file.name}`;
+                checkFilesAndEnableCompare();
+            }
+        });
+
+        function checkFilesAndEnableCompare() {
+            if (selectedFiles.file1 && selectedFiles.file2) {
+                compareBtn.disabled = false;
+                compareBtn.style.opacity = '1';
+            }
+        }
+
+        // Form submission handling
+        compareForm.addEventListener('submit', function(e) {
+            if (!selectedFiles.file1 || !selectedFiles.file2) {
+                e.preventDefault();
+                alert('Please select both files before comparing.');
+                return;
+            }
+
+            // Show loading spinner
+            loading.classList.add('show');
+            compareBtn.disabled = true;
+            compareBtn.innerHTML = '<span>⏳ Processing...</span>';
+        });
+
+        // Handle potential errors from Django
+        {% if messages %}
+            {% for message in messages %}
+                {% if message.tags == 'error' %}
+                    alert('Error: {{ message }}');
+                {% elif message.tags == 'success' %}
+                    console.log('Success: {{ message }}');
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
+        // Tab functionality for differences
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const targetTab = this.getAttribute('data-tab');
+                
+                // Remove active class from all tabs
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // Add active class to clicked tab and corresponding content
+                this.classList.add('active');
+                document.getElementById(targetTab).classList.add('active');
+            });
+        });
+
+        // Drag and drop functionality
+        const uploadBoxes = document.querySelectorAll('.upload-box');
+        
+        uploadBoxes.forEach(box => {
+            box.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.style.borderColor = '#2980b9';
+                this.style.background = 'rgba(52, 152, 219, 0.2)';
+            });
+
+            box.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                this.style.borderColor = '#3498db';
+                this.style.background = 'rgba(52, 152, 219, 0.05)';
+            });
+
+            box.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.style.borderColor = '#3498db';
+                this.style.background = 'rgba(52, 152, 219, 0.05)';
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    const fileInput = this.querySelector('.file-input');
+                    fileInput.files = files;
+                    fileInput.dispatchEvent(new Event('change'));
+                }
+            });
+        });
+    </script>
+</body>
+</html>

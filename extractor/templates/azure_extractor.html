@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Statement Extractor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        /* Email Modal Styles */
+        .email-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .email-modal-content {
+            background: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .email-modal h2 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+        }
+
+        .email-modal p {
+            color: #666;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .email-input-group {
+            margin-bottom: 2rem;
+        }
+
+        .email-input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .email-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .email-input.error {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+        }
+
+        .email-error {
+            color: #dc3545;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .email-modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .email-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .email-btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .email-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .email-btn-secondary {
+            background: #f8f9fa;
+            color: #666;
+            border: 1px solid #e0e0e0;
+        }
+
+        .email-btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .email-status {
+            background: rgba(40, 167, 69, 0.1);
+            border: 1px solid #28a745;
+            color: #155724;
+            padding: 0.75rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .email-status.show {
+            display: block;
+        }
+
+        .email-timer {
+            font-size: 0.875rem;
+            color: #666;
+            margin-top: 0.5rem;
+        }
+
+        /* Navbar Styles */
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #333;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .evaluation-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a6f);
+            color: white !important;
+            padding: 0.7rem 1.5rem !important;
+            border-radius: 25px !important;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .evaluation-btn:hover {
+            background: linear-gradient(45deg, #ee5a6f, #ff6b6b) !important;
+            transform: translateY(-3px) !important;
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .email-indicator {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white !important;
+            padding: 0.5rem 1rem !important;
+            border-radius: 20px !important;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: none;
+        }
+
+        .email-indicator.show {
+            display: inline-block;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 800px;
+            margin: 4rem auto;
+            padding: 0 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 3rem;
+        }
+
+        /* File Upload Styles */
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 4rem 2rem;
+            margin: 2rem 0;
+            background: rgba(102, 126, 234, 0.05);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+
+        .upload-area.dragover {
+            border-color: #28a745;
+            background: rgba(40, 167, 69, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .upload-subtext {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .file-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-info {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(40, 167, 69, 0.1);
+            border-radius: 10px;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .upload-btn {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 2rem;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+        }
+
+        .upload-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            width: 100%;
+            background: #f0f0f0;
+            border-radius: 10px;
+            margin: 1rem 0;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        /* Messages */
+        .message {
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .message.success {
+            background: rgba(40, 167, 69, 0.1);
+            border: 1px solid #28a745;
+            color: #155724;
+            display: block;
+        }
+
+        .message.error {
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid #dc3545;
+            color: #721c24;
+            display: block;
+        }
+
+        /* Results Section */
+        .results {
+            margin-top: 2rem;
+            text-align: left;
+        }
+
+        .result-item {
+            background: rgba(102, 126, 234, 0.05);
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 0.5rem 0;
+            border-left: 4px solid #667eea;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                gap: 1rem;
+                padding: 1rem;
+            }
+
+            .nav-links {
+                gap: 1rem;
+            }
+
+            .container {
+                margin: 2rem auto;
+                padding: 0 1rem;
+            }
+
+            .card {
+                padding: 2rem 1.5rem;
+            }
+
+            .title {
+                font-size: 2rem;
+            }
+
+            .upload-area {
+                padding: 2rem 1rem;
+            }
+
+            .email-modal-content {
+                margin: 20% auto;
+                padding: 1.5rem;
+            }
+
+            .email-modal-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Email Modal -->
+    <div id="emailModal" class="email-modal">
+        <div class="email-modal-content">
+            <h2>📧 Email Required</h2>
+            <p>Please provide your email address to receive processing notifications and download links for your bank statement analysis.</p>
+            
+            <div class="email-input-group">
+                <input type="email" 
+                       id="userEmail" 
+                       class="email-input" 
+                       placeholder="Enter your email address"
+                       required>
+                <div class="email-error" id="emailError">Please enter a valid email address</div>
+            </div>
+
+            <div class="email-status" id="emailStatus">
+                <strong>✓ Email saved successfully!</strong>
+                <div class="email-timer" id="emailTimer">Valid for: 30:00 minutes</div>
+            </div>
+
+            <div class="email-modal-buttons">
+                <button class="email-btn email-btn-primary" onclick="saveEmail()">Save Email</button>
+                <button class="email-btn email-btn-secondary" onclick="closeEmailModal()">Skip for now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="logo">🏦 Bank Statement Extractor (Azure Call)</div>
+        <ul class="nav-links">
+            <li><a href="{% url 'azure_extractor' %}">Home</a></li>
+            <li><a href="#" onclick="showUploadSection()">Upload</a></li>
+            <li><a href="/eval" class="evaluation-btn" onclick="runEvaluation()">Run Evaluation</a></li>
+            <li><span class="email-indicator" id="emailIndicator">📧 Email Set</span></li>
+        </ul>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container">
+        <div class="card">
+            <h1 class="title">Bank Statement Processor</h1>
+            <p class="subtitle">Upload your PDF bank statements for processing and analysis</p>
+
+            <!-- Messages -->
+            {% if status_code == 200 %}
+            <div class="message success">
+                <strong>Success!</strong> {{ message }}
+                <br><strong>File:</strong> {{ original_file }}
+                <br><strong>Pages:</strong> {{ page_count }}
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="message error">
+                <strong>Error!</strong> {{ message }}
+            </div>
+            {% endif %}
+
+            <!-- File Upload Form -->
+            <form method="post" enctype="multipart/form-data" id="uploadForm">
+                {% csrf_token %}
+                <input type="hidden" name="user_email" id="hiddenUserEmail" value="">
+                
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-text">Drop your PDF file here or click to browse</div>
+                    <div class="upload-subtext">Supports PDF files up to 10MB</div>
+                    <input type="file" 
+                           name="pdf_file" 
+                           id="pdfFile" 
+                           class="file-input" 
+                           accept=".pdf"
+                           required>
+                </div>
+
+                <div class="file-info" id="fileInfo">
+                    <div id="fileName"></div>
+                    <div id="fileSize"></div>
+                </div>
+
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+
+                <button type="submit" class="upload-btn" id="uploadBtn" disabled>
+                    Upload & Process PDF
+                </button>
+            </form>
+
+            <!-- Results Section -->
+            {% if page_files %}
+            <div class="results">
+                <h3>Processed Pages:</h3>
+                {% for page in page_files %}
+                <div class="result-item">
+                    <strong>Page {{ forloop.counter }}:</strong> {{ page }}
+                    <a href="{% url 'download_csv' page %}" class="download-btn">Download CSV</a>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // Email management functionality
+        let emailTimer = null;
+        let emailExpiry = null;
+        
+        // Check for existing email on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkExistingEmail();
+        });
+
+        function checkExistingEmail() {
+            const storedEmail = localStorage.getItem('userEmail');
+            const storedExpiry = localStorage.getItem('emailExpiry');
+            
+            if (storedEmail && storedExpiry) {
+                const now = new Date().getTime();
+                const expiryTime = parseInt(storedExpiry);
+                
+                if (now < expiryTime) {
+                    // Email is still valid
+                    setEmailStatus(storedEmail, expiryTime);
+                    return;
+                } else {
+                    // Email has expired, clear storage
+                    clearEmailStorage();
+                }
+            }
+            
+            // Show email modal after a short delay
+            setTimeout(() => {
+                showEmailModal();
+            }, 1000);
+        }
+
+        function showEmailModal() {
+            document.getElementById('emailModal').style.display = 'block';
+            document.getElementById('userEmail').focus();
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailModal').style.display = 'none';
+        }
+
+        function validateEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        }
+
+        function saveEmail() {
+            const email = document.getElementById('userEmail').value.trim();
+            const emailInput = document.getElementById('userEmail');
+            const emailError = document.getElementById('emailError');
+            
+            // Reset error state
+            emailInput.classList.remove('error');
+            emailError.style.display = 'none';
+            
+            if (!email) {
+                emailInput.classList.add('error');
+                emailError.textContent = 'Please enter an email address';
+                emailError.style.display = 'block';
+                return;
+            }
+            
+            if (!validateEmail(email)) {
+                emailInput.classList.add('error');
+                emailError.textContent = 'Please enter a valid email address';
+                emailError.style.display = 'block';
+                return;
+            }
+            
+            // Save email with 3 hours expiry
+            const now = new Date().getTime();
+            const expiry = now + (180 * 60 * 1000); // 3 hours from now
+            
+            localStorage.setItem('userEmail', email);
+            localStorage.setItem('emailExpiry', expiry.toString());
+            
+            setEmailStatus(email, expiry);
+            closeEmailModal();
+        }
+
+        function setEmailStatus(email, expiry) {
+            // Update hidden form field
+            document.getElementById('hiddenUserEmail').value = email;
+            
+            // Show email indicator
+            const indicator = document.getElementById('emailIndicator');
+            indicator.classList.add('show');
+            indicator.title = `Email: ${email}`;
+            
+            // Show status in modal
+            document.getElementById('emailStatus').classList.add('show');
+            
+            // Start countdown timer
+            startEmailTimer(expiry);
+        }
+
+        function startEmailTimer(expiry) {
+            if (emailTimer) {
+                clearInterval(emailTimer);
+            }
+            
+            emailTimer = setInterval(() => {
+                const now = new Date().getTime();
+                const timeLeft = expiry - now;
+                
+                if (timeLeft <= 0) {
+                    // Email has expired
+                    clearInterval(emailTimer);
+                    clearEmailStorage();
+                    showEmailModal();
+                    return;
+                }
+                
+                // Update timer display
+                const minutes = Math.floor(timeLeft / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+                const timerElement = document.getElementById('emailTimer');
+                
+                if (timerElement) {
+                    timerElement.textContent = `Valid for: ${minutes}:${seconds.toString().padStart(2, '0')} minutes`;
+                }
+            }, 1000);
+        }
+
+        function clearEmailStorage() {
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('emailExpiry');
+            document.getElementById('hiddenUserEmail').value = '';
+            document.getElementById('emailIndicator').classList.remove('show');
+            document.getElementById('emailStatus').classList.remove('show');
+            
+            if (emailTimer) {
+                clearInterval(emailTimer);
+                emailTimer = null;
+            }
+        }
+
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('pdfFile');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect();
+            }
+        });
+
+        // File input change handler
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect() {
+            const file = fileInput.files[0];
+            if (file) {
+                // Validate file type
+                if (file.type !== 'application/pdf') {
+                    alert('Please select a PDF file.');
+                    fileInput.value = '';
+                    return;
+                }
+
+                // Validate file size (1000MB limit)
+                const maxSize = 1000 * 1024 * 1024; // 1000MB in bytes
+                if (file.size > maxSize) {
+                    alert('File size must be less than 1000MB.');
+                    fileInput.value = '';
+                    return;
+                }
+
+                // Display file info
+                fileName.textContent = `File: ${file.name}`;
+                fileSize.textContent = `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+                fileInfo.classList.add('show');
+                uploadBtn.disabled = false;
+
+                // Update upload area appearance
+                uploadArea.style.borderColor = '#28a745';
+                uploadArea.style.background = 'rgba(40, 167, 69, 0.1)';
+            }
+        }
+
+        // Form submission with progress and email validation
+        uploadForm.addEventListener('submit', (e) => {
+            // Check if email is available and valid
+            const userEmail = document.getElementById('hiddenUserEmail').value;
+            if (!userEmail) {
+                e.preventDefault();
+                alert('Please provide your email address before uploading.');
+                showEmailModal();
+                return;
+            }
+
+            // Check if email hasn't expired
+            const storedExpiry = localStorage.getItem('emailExpiry');
+            if (storedExpiry) {
+                const now = new Date().getTime();
+                const expiryTime = parseInt(storedExpiry);
+                
+                if (now >= expiryTime) {
+                    e.preventDefault();
+                    alert('Your email session has expired. Please enter your email again.');
+                    clearEmailStorage();
+                    showEmailModal();
+                    return;
+                }
+            }
+
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Processing...';
+            progressContainer.style.display = 'block';
+            
+            // Simulate progress (since we can't track actual upload progress easily)
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 10;
+                progressBar.style.width = progress + '%';
+                if (progress >= 90) {
+                    clearInterval(interval);
+                }
+            }, 200);
+        });
+
+        // Navigation functions
+        function showUploadSection() {
+            window.scrollTo({
+                top: document.querySelector('.upload-area').offsetTop - 100,
+                behavior: 'smooth'
+            });
+        }
+
+        function runEvaluation() {
+            // Check if there are processed files
+            const results = document.querySelector('.results');
+            if (!results) {
+                alert('Please upload and process a PDF file first before running evaluation.');
+                return;
+            }
+
+            // Show evaluation modal or redirect to evaluation page
+            if (confirm('Run evaluation on the processed data?')) {
+                // You can redirect to evaluation page or show a modal
+                // For now, we'll show an alert
+                alert('Evaluation feature will be implemented. This will analyze the extracted data.');
+                
+                // Future implementation:
+                // window.location.href = '/eval/';
+                // or open a modal with evaluation options
+            }
+        }
+
+        // Add some interactive animations
+        document.querySelectorAll('.nav-links a').forEach(link => {
+            link.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-2px)';
+            });
+            
+            link.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+            });
+        });
+
+        // Email modal keyboard handling
+        document.getElementById('userEmail').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                saveEmail();
+            }
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('emailModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeEmailModal();
+            }
+        });
+    </script>
+</body>
+</html>

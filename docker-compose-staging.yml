@@ -1,0 +1,37 @@
+services:
+  staging_app_1:
+    build:
+      context: .
+      dockerfile: dockerfile.staging
+    ports:
+      - 80:8000
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    command: gunicorn bank_module_lambda_integration.wsgi:application --bind 0.0.0.0:8000
+    depends_on:
+      - staging_db
+    networks:
+      - bank_statement_module_staging_network
+
+  staging_db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bank_statement_module
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bank_statement_module_staging_network
+
+volumes:
+  postgres_data:
+
+networks:
+  bank_statement_module_staging_network:
+    driver: bridge
+

@@ -1,0 +1,37 @@
+services:
+  app_1:
+    build:
+      context: .
+      dockerfile: dockerfile.dev
+    ports:
+      - 8000:8000
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    command: python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      - db
+    networks:
+      - bank_statement_module_network
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bank_statement_module
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bank_statement_module_network
+
+volumes:
+  postgres_data:
+
+networks:
+  bank_statement_module_network:
+    driver: bridge
+

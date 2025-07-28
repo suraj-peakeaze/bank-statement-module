@@ -1,0 +1,28 @@
+FROM python:3.13-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Set work directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt /app/
+RUN apt-get update && apt-get install poppler-utils -y
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY . /app/
+
+# Create necessary directories
+RUN mkdir -p /app/media \
+    && mkdir -p /app/logs \
+    && mkdir -p /app/csv_to_xml_output \
+    && mkdir -p /app/org_csv
+
+# Expose port
+EXPOSE 8000
+
+# Default command
+CMD ["python","-Xfaulthandler", "manage.py", "runserver", "0.0.0.0:8000"]
