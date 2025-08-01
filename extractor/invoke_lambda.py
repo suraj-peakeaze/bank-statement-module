@@ -105,6 +105,7 @@ def AzureExtractorView(request):
                 "num_pages": num_pages,
                 "timestamp": timestamp,
             }
+            print(execution_input)
 
             execution_name = f"ocr-job-{job.id}-{timestamp}"
             response = sfn.start_execution(
