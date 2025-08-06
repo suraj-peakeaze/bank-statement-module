@@ -94,7 +94,10 @@ def AzureExtractorView(request):
             )
 
             # Trigger Step Functions workflow
-            sfn = boto3.client("stepfunctions")
+            # sfn = boto3.client("stepfunctions")
+            
+            # Now triggering step function using queue rather than directly executing function
+            sqs = boto3.client("sqs")
 
             execution_input = {
                 "job_id": str(job.id),
@@ -108,17 +111,17 @@ def AzureExtractorView(request):
             print(execution_input)
 
             execution_name = f"ocr-job-{job.id}-{timestamp}"
-            response = sfn.start_execution(
-                stateMachineArn=state_machine_arn,
-                name=execution_name,
-                input=json.dumps(execution_input),
+            queue_url = os.getenv("START_QUEUE_URL")
+            response = sqs.send_message(
+                QueueUrl=queue_url,
+                MessageBody=json.dumps(execution_input)
             )
 
             # Update job with execution details
-            job.execution_arn = response["executionArn"]
+            job.sqs_message_id  = response["MessageId"]
             job.save()
 
-            logger.info(f"Step Functions execution started: {response['executionArn']}")
+            logger.info(f"Step Functions execution started: {response['MessageId']}")
 
             # Render success page
             return render(
@@ -129,7 +132,7 @@ def AzureExtractorView(request):
                     "email": user_email,
                     "pages": num_pages,
                     "pdf_name": pdf_name,
-                    "execution_arn": response["executionArn"],
+                    "execution_arn": response["MessageId"],
                 },
             )
 
