@@ -2,15 +2,21 @@ import boto3
 import json
 import os
 import io
-from datetime import datetime
+import re
 from django.shortcuts import render
-from django.http import JsonResponse, Http404
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
 from PyPDF2 import PdfReader
 from .models import ExtractedDataUsingAzure_lambda
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_name(name: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("_")
+    return safe[:200] or "document"
 
 
 def AzureExtractorView(request):
@@ -25,12 +31,12 @@ def AzureExtractorView(request):
             if not bucket_name:
                 raise Exception("AWS_STORAGE_BUCKET_NAME environment variable not set")
 
-            state_machine_arn = os.getenv("STATE_MACHINE_ARN")
-            if not state_machine_arn:
-                raise Exception("STATE_MACHINE_ARN environment variable not set")
+            job_status_table = os.getenv("JOB_STATUS_TABLE")
+            if not job_status_table:
+                raise Exception("JOB_STATUS_TABLE environment variable not set")
 
-            start_time = datetime.now()
-            logger.info(f"Upload process started at {start_time}")
+            start_time = timezone.now()
+            logger.info(f"Upload process started at {start_time.isoformat()}")
 
             # Extract user input
             user_email = request.POST.get("user_email", "")
@@ -43,7 +49,11 @@ def AzureExtractorView(request):
                     {"error": True, "message": "No PDF file provided"},
                 )
 
-            pdf_name = pdf_file.name.replace(".pdf", "")
+            # Derive and sanitize PDF name (without extension)
+            basename = pdf_file.name
+            if basename.lower().endswith(".pdf"):
+                basename = basename[: -len(".pdf")]
+            pdf_name = _sanitize_name(basename)
 
             # Validate PDF
             pdf_file.seek(0)
@@ -61,7 +71,7 @@ def AzureExtractorView(request):
             # Clean bytes and validate structure
             clean_bytes = file_bytes[idx:]
             try:
-                reader = PdfReader(io.BytesIO(clean_bytes), strict=False)
+                reader = PdfReader(io.BytesIO(clean_bytes))
                 num_pages = len(reader.pages)
                 logger.info(f"Valid PDF with {num_pages} pages")
             except Exception as e:
@@ -74,12 +84,13 @@ def AzureExtractorView(request):
 
             # Upload PDF to S3
             s3 = boto3.client("s3")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            s3_key = f"incoming_pdfs/{timestamp}_{pdf_name}.pdf"
+            timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+
+            safe_pdf_name = re.sub(r"[^A-Za-z0-9._-]+", "_", pdf_name)[:200]
+            s3_key = f"incoming_pdfs/{timestamp}_{safe_pdf_name}.pdf"
 
             # Reset file pointer and upload
             pdf_file.seek(0)
-            s3.upload_fileobj(pdf_file, bucket_name, s3_key)
             logger.info(f"PDF uploaded to s3://{bucket_name}/{s3_key}")
 
             # Create database record for job tracking
@@ -93,35 +104,42 @@ def AzureExtractorView(request):
                 num_pages=num_pages,
             )
 
-            # Trigger Step Functions workflow
-            # sfn = boto3.client("stepfunctions")
-            
-            # Now triggering step function using queue rather than directly executing function
-            sqs = boto3.client("sqs")
-
-            execution_input = {
-                "job_id": str(job.id),
-                "bucket": bucket_name,
-                "pdf_key": s3_key,
-                "pdf_name": pdf_name,
-                "user_email": user_email,
-                "num_pages": num_pages,
-                "timestamp": timestamp,
-            }
-            print(execution_input)
-
-            execution_name = f"ocr-job-{job.id}-{timestamp}"
-            queue_url = os.getenv("START_QUEUE_URL")
-            response = sqs.send_message(
-                QueueUrl=queue_url,
-                MessageBody=json.dumps(execution_input)
+            s3.upload_fileobj(
+                pdf_file,
+                bucket_name,
+                s3_key,
+                ExtraArgs={
+                    "Metadata": {
+                        "job-id": str(job.id),
+                        "user-email": user_email or "",
+                        "pdf-name": pdf_name,
+                        "upload-timestamp": timezone.now().isoformat(),
+                    }
+                },
             )
 
-            # Update job with execution details
-            job.sqs_message_id  = response["MessageId"]
-            job.save()
+            # Write initial job state to DynamoDB
+            try:
+                dynamodb = boto3.resource("dynamodb")
+                table = dynamodb.Table(job_status_table)
 
-            logger.info(f"Step Functions execution started: {response['MessageId']}")
+                item = {
+                    "job_id": job.id,
+                    "status": "INITIATED",
+                    "pdf_key": s3_key,
+                    "created_at": timezone.now().isoformat(),
+                    "retries": 0,
+                    "next": "split_pdf",
+                    "user_email": user_email,
+                    "is_email_sent": False,
+                    "length_of_pdf": num_pages,
+                    "page_number": 0,
+                }
+
+                table.put_item(Item=item)
+
+            except Exception as ddb_e:
+                logger.error(f"Failed to write DynamoDB job status: {ddb_e}")
 
             # Render success page
             return render(
@@ -132,7 +150,6 @@ def AzureExtractorView(request):
                     "email": user_email,
                     "pages": num_pages,
                     "pdf_name": pdf_name,
-                    "execution_arn": response["MessageId"],
                 },
             )
 
@@ -156,32 +173,12 @@ def job_status(request, job_id):
     try:
         job = ExtractedDataUsingAzure_lambda.objects.get(id=job_id)
 
-        # Optional: Query Step Functions for real-time status
-        if job.execution_arn:
-            try:
-                sfn = boto3.client("stepfunctions")
-                execution = sfn.describe_execution(executionArn=job.execution_arn)
-                step_function_status = execution.get("status", "UNKNOWN")
-
-                # Map Step Functions status to our status
-                if step_function_status == "SUCCEEDED":
-                    job.status = "COMPLETED"
-                elif step_function_status == "FAILED":
-                    job.status = "FAILED"
-                elif step_function_status == "RUNNING":
-                    job.status = "PROCESSING"
-
-                job.save()
-            except Exception as e:
-                logger.warning(f"Could not get Step Functions status: {e}")
-
         return JsonResponse(
             {
                 "status": job.status,
                 "progress": getattr(job, "progress", 0),
                 "final_csv_url": getattr(job, "final_csv_url", None),
                 "error_message": getattr(job, "error_message", None),
-                "execution_arn": job.execution_arn,
             }
         )
 
@@ -197,7 +194,7 @@ def update_job_status(request):
     """
     if request.method == "POST":
         try:
-            data = json.loads(request.body)
+            data = json.loads(request.body or "{}")
             job_id = data.get("job_id")
 
             if not job_id:
@@ -220,7 +217,7 @@ def update_job_status(request):
             if "final_csv_key" in data:
                 job.final_csv_s3_key = data["final_csv_key"]
 
-            job.updated_at = datetime.now()
+            job.updated_at = timezone.now()
             job.save()
 
             logger.info(f"Job {job_id} status updated to {job.status}")
@@ -252,6 +249,8 @@ def download_result(request, job_id):
         # Generate presigned URL for download
         s3 = boto3.client("s3")
         bucket_name = os.environ.get("PROCESSING_BUCKET")
+        if not bucket_name:
+            return JsonResponse({"error": "PROCESSING_BUCKET not set"}, status=500)
 
         download_url = s3.generate_presigned_url(
             "get_object",
